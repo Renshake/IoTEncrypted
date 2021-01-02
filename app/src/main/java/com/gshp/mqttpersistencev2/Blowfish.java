@@ -12,8 +12,8 @@ public class Blowfish {
     @SuppressLint("GetInstance")
     public byte[] encrypt(String sub_key, String deviceInfo) throws Exception{
 
-        Cipher cipher = null;
-        cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
+
+        Cipher cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
 
         Key blowfishKey = new SecretKeySpec(sub_key.getBytes(), "Blowfish");
         assert cipher != null;

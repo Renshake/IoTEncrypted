@@ -190,7 +190,6 @@ public class ExampleJobService extends JobService {
 
                 String decryptedString = new String(decrypted);
 
-
                 Log.d(TAG, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>onSuccess: "+ new String(decrypted) + " " + decryptedString + " " + Arrays.toString(decrypted));*/
 
             }
