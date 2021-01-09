@@ -31,6 +31,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Random;
+import java.util.UUID;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -63,7 +64,7 @@ public class ExampleJobService extends JobService {
 
     public void connectAndPublish(final JobParameters params) throws MqttException, IOException {
         final String clientId = MqttClient.generateClientId();
-        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.237.95:1883",
+        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.150:1883",
                 clientId);
 
         final SharedPreferences sharedPreferences = getApplication().getSharedPreferences("IoTE", Context.MODE_PRIVATE);
@@ -79,30 +80,11 @@ public class ExampleJobService extends JobService {
             @SuppressLint("GetInstance")
             @Override
             public void onSuccess(IMqttToken asyncActionToken) {
+
+                final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
+                String deviceInfo = "";
                 Log.d(TAG, "onSuccess: Successfully client connected!!");
 
-                /*
-                //Números aleatorios
-                Random rand = new Random();
-                int x_index = rand.nextInt(32);
-                boolean unique = false;
-                int y_index = 0;
-
-                while (!unique){
-                    y_index = rand.nextInt(32);
-
-                    if( (x_index != y_index) && (Math.abs(x_index-y_index) >= 16) ){
-                        unique = true;
-                    }
-                }
-
-                int startIndex = Math.min(x_index , y_index);
-                int endIndex = Math.max(x_index , y_index);
-                String sub_key = key.substring(startIndex,endIndex);*/
-
-                String deviceInfo = "";
-
-                //String consultaFinal = "{'dispositivo':'"+ id +"', 'valor': 'Reportado','campo': 'Tarea Programada'}";
                 String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
                 int firstTime = 0; //SIMULACIÓN
 
@@ -126,42 +108,12 @@ public class ExampleJobService extends JobService {
                     deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"11\", \"value\": \"Activo\"}"+firstTime+"&";
                 }
 
-
-                //cifrando el payload :'v
-                /*
-                @SuppressLint("GetInstance") Cipher cipher = null;
-                try {
-                    cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
-                } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-                    e.printStackTrace();
-                }
-                Key blowfishKey = new SecretKeySpec(sub_key.getBytes(), "Blowfish");
-                try {
-                    assert cipher != null;
-                    cipher.init(Cipher.ENCRYPT_MODE, blowfishKey);
-                } catch (InvalidKeyException e) {
-                    e.printStackTrace();
-                }
-
-                byte[] enc_bytes = new byte[0];
-                try {
-                    enc_bytes = cipher.doFinal(deviceInfo.getBytes());
-                } catch (BadPaddingException | IllegalBlockSizeException e) {
-                    e.printStackTrace();
-                }
-
-                String cifrado = new String(enc_bytes, StandardCharsets.UTF_8);
-                */
-                //===========================================================A hacer en cada caso 1-13 :'v===================================================================
                 Blowfish blowfish = new Blowfish();
                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                int[] indexes = blowfish.generateIndexes();
-                String sub_key = key.substring(indexes[0] , indexes[1]);
-                String mqttPayload = String.format("%02d", indexes[0]) + String.format("%02d", indexes[1]) + sub_key;
 
                 try {
-                    bytesMqtt.write(mqttPayload.getBytes());
-                    bytesMqtt.write(blowfish.encrypt(sub_key,deviceInfo));
+                    bytesMqtt.write(encryptKey.getBytes());
+                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -173,24 +125,6 @@ public class ExampleJobService extends JobService {
                 } catch (MqttException e) {
                     e.printStackTrace();
                 }
-
-                /*
-                //Descrifrando
-                try {
-                    cipher.init(Cipher.DECRYPT_MODE, blowfishKey);
-                } catch (InvalidKeyException e) {
-                    e.printStackTrace();
-                }
-                byte[] decrypted = new byte[0];
-                try {
-                    decrypted = cipher.doFinal(enc_bytes);
-                } catch (BadPaddingException | IllegalBlockSizeException e) {
-                    e.printStackTrace();
-                }
-
-                String decryptedString = new String(decrypted);
-
-                Log.d(TAG, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>onSuccess: "+ new String(decrypted) + " " + decryptedString + " " + Arrays.toString(decrypted));*/
 
             }
 
