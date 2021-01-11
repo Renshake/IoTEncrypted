@@ -9,14 +9,17 @@ import java.util.UUID;
 
 public class MqttApplication extends Application {
     public static MqttApplication application;
+    public static SharedPreferences sharedPreferences;
+    public static SharedPreferences.Editor editor;
 
     @Override
     public void onCreate() {
         super.onCreate();
         application = this;
 
-        SharedPreferences sharedPreferences = this.getSharedPreferences("IoTE", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
+        sharedPreferences = this.getSharedPreferences("IoTE", Context.MODE_PRIVATE);
+        editor = sharedPreferences.edit();
+
         editor.putString("ID", UUID.randomUUID().toString());
         editor.apply();
 
@@ -25,5 +28,16 @@ public class MqttApplication extends Application {
 
         editor.putInt("FIRST_TIME", 1);
         editor.apply();
+
+        editor.putBoolean("BUSY_THREAD", false);
+        editor.apply();
+
+        editor.putBoolean("DOS_FLOOD_SYN", false);
+        editor.apply();
+
+        editor.putBoolean("DOS_AMP_DNS", false);
+        editor.apply();
+
+
     }
 }
