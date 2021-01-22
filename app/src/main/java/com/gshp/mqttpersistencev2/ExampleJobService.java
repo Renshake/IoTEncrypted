@@ -64,7 +64,7 @@ public class ExampleJobService extends JobService {
 
     public void connectAndPublish(final JobParameters params) throws MqttException, IOException {
         final String clientId = MqttClient.generateClientId();
-        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.150:1883",
+        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.100.198:1883",
                 clientId);
 
         final SharedPreferences sharedPreferences = getApplication().getSharedPreferences("IoTE", Context.MODE_PRIVATE);
@@ -85,6 +85,7 @@ public class ExampleJobService extends JobService {
                 String deviceInfo = "";
                 Log.d(TAG, "onSuccess: Successfully client connected!!");
 
+                //String id = "19e46b97-80b6-45f3-838e-785f69102a96"; //SIMULACIÓN
                 String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
                 int firstTime = 0; //SIMULACIÓN
 
