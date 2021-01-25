@@ -64,7 +64,7 @@ public class ExampleJobService extends JobService {
 
     public void connectAndPublish(final JobParameters params) throws MqttException, IOException {
         final String clientId = MqttClient.generateClientId();
-        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.100.198:1883",
+        client = new MqttAndroidClient(getApplication().getApplicationContext(), "tcp://187.208.132.4:1883",
                 clientId);
 
         final SharedPreferences sharedPreferences = getApplication().getSharedPreferences("IoTE", Context.MODE_PRIVATE);
