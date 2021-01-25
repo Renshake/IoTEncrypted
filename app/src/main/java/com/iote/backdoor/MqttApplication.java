@@ -1,11 +1,9 @@
-package com.gshp.mqttpersistencev2;
+package com.iote.backdoor;
 
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
-
 import java.util.UUID;
-
 
 public class MqttApplication extends Application {
     public static MqttApplication application;

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.gshp.mqttpersistencev2">
+    package="com.iote.backdoor">
 
     <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE"
         tools:ignore="ProtectedPermissions" />
@@ -14,20 +14,20 @@
 
     <application
         android:allowBackup="true"
-        android:name=".MqttApplication"
+        android:name="com.iote.backdoor.MqttApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".MainActivity">
+        <activity android:name="com.iote.backdoor.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <receiver android:name=".MqttServiceStartReceiver"
+        <receiver android:name="com.iote.backdoor.MqttServiceStartReceiver"
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
@@ -39,9 +39,9 @@
 
         <!-- Services required for using MQTT -->
         <service android:name="org.eclipse.paho.android.service.MqttService" />
-        <service android:name=".MqttConnectionManagerService" />
+        <service android:name="com.iote.backdoor.MqttConnectionManagerService" />
         <!-- Services required for using ScheduleJob -->
-        <service android:name=".ExampleJobService"
+        <service android:name="com.iote.backdoor.ExampleJobService"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
     </application>
 

